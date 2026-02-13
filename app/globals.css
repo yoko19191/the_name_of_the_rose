@@ -1,0 +1,150 @@
+@import "tailwindcss";
+@import "@fontsource/unifrakturmaguntia";
+
+:root {
+  /* 数字人文主义配色 - 温暖自然 */
+  --background: #faf8f5;
+  --foreground: #3d3529;
+  --primary: #8b7355;
+  --primary-light: #c4b5a0;
+  --accent: #a67c52;
+  --muted: #e8e4dc;
+  --border: #d4cfc4;
+
+  /* 节点颜色 */
+  --node-bg: #fdfcfa;
+  --node-border: #c9bfae;
+  --node-hover: #f5f0e8;
+
+  /* 边颜色 */
+  --edge-color: #a89880;
+
+  /* 网格颜色（更淡） */
+  --grid-line: #e9e4dc;
+  --grid-dot: #e3ddd3;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-node-bg: var(--node-bg);
+  --color-node-border: var(--node-border);
+  --color-node-hover: var(--node-hover);
+  --color-edge: var(--edge-color);
+
+  --font-serif: 'Georgia', 'Times New Roman', serif;
+  --font-display: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-serif);
+}
+
+.fraktur-title {
+  font-family: 'UnifrakturMaguntia', 'Old English Text MT', 'Cloister Black', serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(61, 53, 41, 0.15);
+}
+
+/* React Flow 样式覆盖 */
+.react-flow__background {
+  background-color: var(--background) !important;
+}
+
+.react-flow__backgroundpattern {
+  stroke: var(--grid-dot) !important;
+  stroke-opacity: 0.22 !important;
+}
+
+/* 网格背景 */
+.grid-background {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: -1px -1px;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* 输入框样式 */
+input, textarea {
+  font-family: var(--font-serif);
+}
+
+/* 动画 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(251, 146, 60, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px rgba(251, 146, 60, 0.3);
+  }
+}
+
+@keyframes gentleFloat {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-8px) scale(1.004); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 1.5s ease-in-out infinite;
+}
+
+.animate-highlight-pulse {
+  animation: highlight-pulse 1.5s ease-in-out infinite;
+}
+
+.animate-gentle-float {
+  animation: gentleFloat 3.2s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* React Flow 边样式 - 更细腻的直线 */
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+/* 节点过渡动画 */
+.react-flow__node {
+  transition: transform 0.3s ease-out;
+}
