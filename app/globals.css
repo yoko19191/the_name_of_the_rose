@@ -144,6 +144,15 @@ input, textarea {
   stroke-linecap: round;
 }
 
+/* 强制节点层级高于连线，避免连线压住概念框 */
+.react-flow__edges {
+  z-index: 1 !important;
+}
+
+.react-flow__nodes {
+  z-index: 2 !important;
+}
+
 /* 节点过渡动画 */
 .react-flow__node {
   transition: transform 0.3s ease-out;

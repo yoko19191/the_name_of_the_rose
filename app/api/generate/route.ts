@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { createAgent, initChatModel } from 'langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
@@ -11,8 +13,10 @@ export const runtime = 'nodejs';
 const wordsSchema = z.object({
   relatedWords: z.array(
     z.object({
-      word: z.string().describe('用于解释原词语的核心概念'),
-      briefExplanation: z.string().describe('简短解释这个词语与原词语的关系'),
+      newConcept: z.string().describe('用于解释原词语的全新概念'),
+      predicate: z.string().describe('用来连接“新概念 -> 旧概念”的谓词短语'),
+      predicateReason: z.string().describe('为什么选择该谓词来解释旧概念'),
+      briefExplanation: z.string().describe('新概念本身的简短解释'),
     })
   ).max(3).describe('不超过3个解释词'),
 });
@@ -70,6 +74,48 @@ const isDynamicImportBundlerError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes('module as expression is too dynamic');
 };
+
+const promptTemplateCache = new Map<string, string>();
+
+const DEFAULT_WORDS_PROMPT_TEMPLATE = `你是一个符号学专家，正在帮助用户探索"无限衍义"的概念。
+
+用户想要理解词语：「{word}」
+
+{background}
+{direction}
+{existingWords}
+
+请按“新概念 -> 谓词 -> 旧概念（{word}）”的格式生成不超过3组关系。要求：
+1. 先给出新概念（newConcept），再用谓词（predicate）说明该新概念如何解释旧概念
+2. predicate 必须是简洁谓词短语（通常2-8字），例如“构成基础”“维系秩序”“揭示边界”
+3. predicateReason 需解释为何使用该谓词（20-60字）
+4. briefExplanation 需简述新概念本身（15-40字）
+5. 优先抽象概念、可继续展开
+{directionConstraint}`;
+
+async function loadPromptTemplate(filename: string, fallback: string) {
+  const cached = promptTemplateCache.get(filename);
+  if (cached) return cached;
+
+  try {
+    const filePath = path.join(process.cwd(), 'prompts', filename);
+    const content = await fs.readFile(filePath, 'utf8');
+    const normalized = content.trim();
+    if (normalized) {
+      promptTemplateCache.set(filename, normalized);
+      return normalized;
+    }
+  } catch (error) {
+    console.warn(`读取提示词模板失败(${filename})，使用内置模板:`, error);
+  }
+
+  promptTemplateCache.set(filename, fallback);
+  return fallback;
+}
+
+function fillPromptTemplate(template: string, values: Record<string, string>) {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? '');
+}
 
 async function initModelWithFallback(
   modelName: string,
@@ -147,25 +193,21 @@ export async function POST(request: NextRequest) {
 
     if (action === 'words') {
       const existingList = existingWords && existingWords.length > 0
-        ? `\n避免使用以下已存在的词语：${existingWords.join('、')}`
+        ? `避免使用以下已存在的词语：${existingWords.join('、')}`
         : '';
 
       const directionHint = direction
-        ? `\n用户希望从以下角度探索：${direction}`
+        ? `用户希望从以下角度探索：${direction}`
         : '';
 
-      const prompt = `你是一个符号学专家，正在帮助用户探索"无限衍义"的概念。
-
-用户想要理解词语：「${word}」
-
-${background ? `背景上下文：${background}` : ''}${directionHint}
-${existingList}
-
-请生成不超过 3 个词语来解释「${word}」的含义。这些词语应该：
-1. 是解释「${word}」时必须用到的核心概念
-2. 每个词语本身也是一个可以被进一步解释的概念
-3. 优先选择抽象概念而非具体事物
-4. 词语应该简洁，通常是2-4个字的名词或概念${directionHint ? `\n5. 特别关注用户指定的探索方向` : ''}`;
+      const template = await loadPromptTemplate('generate-words.txt', DEFAULT_WORDS_PROMPT_TEMPLATE);
+      const prompt = fillPromptTemplate(template, {
+        word,
+        background: background ? `背景上下文：${background}` : '',
+        direction: directionHint,
+        existingWords: existingList,
+        directionConstraint: directionHint ? '6. 特别关注用户指定的探索方向' : '',
+      });
 
       const wordsAgent = createAgent({
         model,

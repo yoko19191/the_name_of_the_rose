@@ -359,6 +359,22 @@ export function RightSidebar({
                 </li>
               </ul>
             </div>
+
+            {/* 项目地址 */}
+            <div className="pt-4 border-t border-[var(--border)]">
+              <h3 className="text-sm text-[var(--primary)] mb-2 font-serif">项目仓库</h3>
+              <a
+                href="https://github.com/yoko19191/the_name_of_the_rose"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="
+                  block text-xs font-serif break-all
+                  text-[var(--accent)] hover:underline
+                "
+              >
+                https://github.com/yoko19191/the_name_of_the_rose
+              </a>
+            </div>
           </div>
         </div>
 

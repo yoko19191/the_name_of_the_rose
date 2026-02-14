@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import {
   ReactFlow,
   Background,
@@ -13,14 +13,16 @@ import {
   type OnNodesChange,
   type OnEdgesChange,
   type NodeTypes,
+  type EdgeTypes,
   type DefaultEdgeOptions,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { WordNode } from './WordNode';
+import { PredicateEdge } from './PredicateEdge';
 import { InputPopover } from './InputPopover';
 import { ContextMenu } from './ContextMenu';
-import type { WordNode as WordNodeType, WordEdge } from '@/types';
+import type { WordNode as WordNodeType, WordEdge, WordEdgeData } from '@/types';
 
 interface CanvasProps {
   nodes: WordNodeType[];
@@ -29,11 +31,15 @@ interface CanvasProps {
   onEdgesChange: OnEdgesChange;
   onAddWord: (word: string, position: { x: number; y: number }) => void;
   onExpandWord: (nodeId: string, direction?: string) => void;
-  onOrganizeNetwork: () => void;
+  onOrganizeNetwork: () => { id: string; x: number; y: number } | null;
 }
 
 const nodeTypes: NodeTypes = {
   wordNode: WordNode,
+};
+
+const edgeTypes: EdgeTypes = {
+  predicateEdge: PredicateEdge,
 };
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
@@ -45,6 +51,59 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 // 网格背景样式
 const gridBackgroundClassName = 'grid-background';
 
+function withRootFlag(nodes: WordNodeType[]): WordNodeType[] {
+  return nodes.map((node, index) => ({
+    ...node,
+    data: {
+      ...node.data,
+      isRoot: index === 0,
+    },
+  }));
+}
+
+function getTreeEdgeIds(nodes: WordNodeType[], edges: WordEdge[]): Set<string> {
+  if (nodes.length === 0 || edges.length === 0) return new Set();
+
+  const rootId = nodes[0].id;
+  const validNodeIds = new Set(nodes.map((node) => node.id));
+  const adjacency = new Map<string, Array<{ neighborId: string; edgeId: string }>>();
+
+  for (const node of nodes) {
+    adjacency.set(node.id, []);
+  }
+
+  for (const edge of edges) {
+    if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) continue;
+    if (edge.source === edge.target) continue;
+    adjacency.get(edge.source)?.push({ neighborId: edge.target, edgeId: edge.id });
+    adjacency.get(edge.target)?.push({ neighborId: edge.source, edgeId: edge.id });
+  }
+
+  const treeEdgeIds = new Set<string>();
+  const visited = new Set<string>([rootId]);
+  const queue = [rootId];
+  const nodeOrder = new Map(nodes.map((node, index) => [node.id, index]));
+
+  for (let i = 0; i < queue.length; i++) {
+    const current = queue[i];
+    const neighbors = adjacency.get(current) || [];
+    neighbors.sort(
+      (a, b) =>
+        (nodeOrder.get(a.neighborId) ?? Number.MAX_SAFE_INTEGER) -
+        (nodeOrder.get(b.neighborId) ?? Number.MAX_SAFE_INTEGER)
+    );
+
+    for (const { neighborId, edgeId } of neighbors) {
+      if (visited.has(neighborId)) continue;
+      visited.add(neighborId);
+      queue.push(neighborId);
+      treeEdgeIds.add(edgeId);
+    }
+  }
+
+  return treeEdgeIds;
+}
+
 export function Canvas({
   nodes: initialNodes,
   edges: initialEdges,
@@ -54,8 +113,8 @@ export function Canvas({
   onExpandWord,
   onOrganizeNetwork,
 }: CanvasProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<WordNodeType>(withRootFlag(initialNodes));
+  const [edges, setEdges, onEdgesChange] = useEdgesState<WordEdge>(initialEdges);
   const [popoverPosition, setPopoverPosition] = useState<{ x: number; y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     position: { x: number; y: number };
@@ -65,11 +124,47 @@ export function Canvas({
     isExpanded?: boolean;
   } | null>(null);
 
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, getZoom, setCenter } = useReactFlow();
+
+  const renderedEdges = useMemo(() => {
+    const treeEdgeIds = getTreeEdgeIds(nodes, edges);
+    return edges.map((edge) => {
+      const isTreeEdge = treeEdgeIds.has(edge.id);
+      const edgeData: WordEdgeData = edge.data || {};
+      const rawPredicate =
+        typeof edgeData.predicate === 'string'
+          ? edgeData.predicate
+          : typeof edgeData.label === 'string'
+            ? edgeData.label
+            : '';
+      const rawPredicateReason = typeof edgeData.predicateReason === 'string' ? edgeData.predicateReason : '';
+      const normalizedStyle = {
+        ...(edge.style || {}),
+        stroke: 'var(--edge-color)',
+        strokeWidth: isTreeEdge ? 1.7 : 1.1,
+        strokeOpacity: isTreeEdge ? 0.92 : 0.26,
+        ...(isTreeEdge ? {} : { strokeDasharray: '7 6' }),
+      };
+      const predicate = rawPredicate.trim() || '关联';
+      const predicateReason = rawPredicateReason.trim() || '该谓词用于表达新概念与旧概念之间的解释关系。';
+
+      return {
+        ...edge,
+        type: 'predicateEdge',
+        style: normalizedStyle,
+        data: {
+          ...(edge.data || {}),
+          predicate,
+          predicateReason,
+          edgeRole: isTreeEdge ? 'tree' : 'cross',
+        },
+      };
+    });
+  }, [nodes, edges]);
 
   // 同步外部状态
   useEffect(() => {
-    setNodes(initialNodes);
+    setNodes(withRootFlag(initialNodes));
   }, [initialNodes, setNodes]);
 
   useEffect(() => {
@@ -160,6 +255,23 @@ export function Canvas({
     [contextMenu, onExpandWord]
   );
 
+  const handleOrganizeNetwork = useCallback(() => {
+    const focused = onOrganizeNetwork();
+    if (!focused) return;
+
+    // 节点位置更新后，将视角平滑拉回首节点
+    requestAnimationFrame(() => {
+      const width = 180;
+      const height = 84;
+      const centerX = focused.x + width / 2;
+      const centerY = focused.y + height / 2;
+      setCenter(centerX, centerY, {
+        zoom: getZoom(),
+        duration: 700,
+      });
+    });
+  }, [onOrganizeNetwork, getZoom, setCenter]);
+
   // 左键点击节点 - 不做任何事（展开功能移到右键）
   const handleNodeClick = useCallback(
     () => {
@@ -172,7 +284,7 @@ export function Canvas({
     <div className="w-full h-full relative">
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={renderedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onPaneClick={handlePaneClick}
@@ -180,6 +292,7 @@ export function Canvas({
         onNodeClick={handleNodeClick}
         onNodeContextMenu={handleNodeContextMenu}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
         minZoom={0.2}
@@ -217,7 +330,7 @@ export function Canvas({
           nodeWord={contextMenu.nodeWord}
           onClose={() => setContextMenu(null)}
           onExpandWithDirection={handleExpandWithDirection}
-          onOrganizeNetwork={onOrganizeNetwork}
+          onOrganizeNetwork={handleOrganizeNetwork}
         />
       )}
     </div>

@@ -7,13 +7,20 @@ export interface WordNodeData extends Record<string, unknown> {
   isLoading: boolean;
   isExpanded: boolean;
   isNew?: boolean; // 新生成的节点，用于高亮显示
+  isRoot?: boolean; // 根节点（第一个概念）
 }
 
 // React Flow 节点类型
 export type WordNode = Node<WordNodeData, 'wordNode'>;
 
 // React Flow 边类型
-export type WordEdge = Edge<{ label?: string }>;
+export interface WordEdgeData extends Record<string, unknown> {
+  label?: string;
+  predicate?: string;
+  predicateReason?: string;
+}
+
+export type WordEdge = Edge<WordEdgeData>;
 
 // 词语网络
 export interface WordNetwork {
@@ -73,7 +80,9 @@ export interface GenerateRequest {
 // 生成解释词响应
 export interface GenerateWordsResponse {
   relatedWords: Array<{
-    word: string;
+    newConcept: string;
+    predicate: string;
+    predicateReason: string;
     briefExplanation: string;
   }>;
 }

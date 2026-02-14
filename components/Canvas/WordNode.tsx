@@ -11,6 +11,12 @@ interface WordNodeProps {
 
 function WordNodeComponent({ data, selected }: WordNodeProps) {
   const isExpanded = data.isExpanded && !data.isLoading;
+  const isRoot = data.isRoot === true;
+  const centerHandleClassName = `
+    !absolute !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2
+    !w-2 !h-2 !min-w-0 !min-h-0
+    !border-0 !bg-transparent !opacity-0 !pointer-events-none
+  `;
 
   return (
     <div
@@ -24,6 +30,7 @@ function WordNodeComponent({ data, selected }: WordNodeProps) {
         }
         ${selected && !isExpanded ? 'ring-2 ring-[var(--accent)] border-[var(--accent)]' : ''}
         ${data.isNew ? 'border-orange-400 ring-2 ring-orange-400/50 shadow-orange-200/50 shadow-lg animate-highlight-pulse' : ''}
+        ${isRoot ? 'border-rose-300 shadow-[0_0_0_1px_rgba(190,24,93,0.20)]' : ''}
         ${data.isLoading ? 'animate-pulse-soft' : ''}
       `}
     >
@@ -31,12 +38,12 @@ function WordNodeComponent({ data, selected }: WordNodeProps) {
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-0 !h-0 !min-w-0 !min-h-0 !border-0 !bg-transparent"
+        className={centerHandleClassName}
       />
       <Handle
         type="source"
-        position={Position.Bottom}
-        className="!w-0 !h-0 !min-w-0 !min-h-0 !border-0 !bg-transparent"
+        position={Position.Top}
+        className={centerHandleClassName}
       />
 
       {/* 加载指示器 */}

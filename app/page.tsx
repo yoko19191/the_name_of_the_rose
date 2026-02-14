@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { Canvas } from '@/components/Canvas/Canvas';
 import { Header } from '@/components/Header';
+import { StorageUsageBar } from '@/components/StorageUsageBar';
 import { LeftSidebar } from '@/components/Sidebar/LeftSidebar';
 import { RightSidebar } from '@/components/Sidebar/RightSidebar';
 import { useWordNetwork } from '@/hooks/useWordNetwork';
@@ -120,6 +121,8 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <StorageUsageBar />
     </main>
   );
 }
