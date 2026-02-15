@@ -4,8 +4,11 @@ import { useState, useRef, useEffect } from 'react';
 
 interface ContextMenuProps {
   position: { x: number; y: number };
+  anchor?: 'point' | 'center';
   type: 'node' | 'pane';
   nodeWord?: string;
+  nodeExplanation?: string;
+  isExpanded?: boolean;
   onClose: () => void;
   onExpandWithDirection?: (direction: string) => void;
   onOrganizeNetwork?: () => void;
@@ -13,8 +16,11 @@ interface ContextMenuProps {
 
 export function ContextMenu({
   position,
+  anchor = 'point',
   type,
   nodeWord,
+  nodeExplanation,
+  isExpanded = false,
   onClose,
   onExpandWithDirection,
   onOrganizeNetwork,
@@ -31,13 +37,13 @@ export function ContextMenu({
   }, [showInput]);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: PointerEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, [onClose]);
 
   const handleExpand = () => {
@@ -53,6 +59,8 @@ export function ContextMenu({
     }
     onClose();
   };
+
+  const canExpand = type === 'node' && !isExpanded;
 
   if (type === 'pane') {
     return (
@@ -90,46 +98,72 @@ export function ContextMenu({
         bg-[var(--node-bg)] border border-[var(--node-border)]
         rounded-lg shadow-xl p-4 min-w-[280px]
       "
-      style={{ left: position.x, top: position.y }}
+      style={{
+        left: position.x,
+        top: position.y,
+        transform: anchor === 'center' ? 'translate(-50%, -50%)' : undefined,
+      }}
     >
       <div className="mb-3">
         <span className="text-sm text-[var(--primary)] font-serif">展开</span>
         <span className="text-lg font-serif text-[var(--foreground)] ml-2">「{nodeWord}」</span>
       </div>
 
+      {nodeExplanation && (
+        <div
+          className="
+            mb-3 rounded-md border border-[var(--border)]
+            bg-[var(--background)] px-3 py-2
+            text-sm leading-relaxed font-serif text-[var(--foreground)]
+            max-h-[220px] overflow-y-auto
+          "
+        >
+          {nodeExplanation}
+        </div>
+      )}
+
       {!showInput ? (
         <div className="space-y-2">
-          <button
-            onClick={() => {
-              if (onExpandWithDirection) {
-                onExpandWithDirection('');
-              }
-              onClose();
-            }}
-            className="
-              w-full px-3 py-2 text-left text-sm font-serif rounded-md
-              text-[var(--foreground)] hover:bg-[var(--muted)]
-              flex items-center gap-2 transition-colors
-            "
-          >
-            <svg className="w-4 h-4 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            自动生成相关概念
-          </button>
-          <button
-            onClick={() => setShowInput(true)}
-            className="
-              w-full px-3 py-2 text-left text-sm font-serif rounded-md
-              text-[var(--foreground)] hover:bg-[var(--muted)]
-              flex items-center gap-2 transition-colors
-            "
-          >
-            <svg className="w-4 h-4 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            指定生成方向...
-          </button>
+          {canExpand && (
+            <>
+              <button
+                onClick={() => {
+                  if (onExpandWithDirection) {
+                    onExpandWithDirection('');
+                  }
+                  onClose();
+                }}
+                className="
+                  w-full px-3 py-2 text-left text-sm font-serif rounded-md
+                  text-[var(--foreground)] hover:bg-[var(--muted)]
+                  flex items-center gap-2 transition-colors
+                "
+              >
+                <svg className="w-4 h-4 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                自动生成相关概念
+              </button>
+              <button
+                onClick={() => setShowInput(true)}
+                className="
+                  w-full px-3 py-2 text-left text-sm font-serif rounded-md
+                  text-[var(--foreground)] hover:bg-[var(--muted)]
+                  flex items-center gap-2 transition-colors
+                "
+              >
+                <svg className="w-4 h-4 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                指定生成方向...
+              </button>
+            </>
+          )}
+          {!canExpand && (
+            <div className="px-1 text-xs font-serif text-[var(--primary)]">
+              该节点已展开，可继续查看上方概念说明。
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

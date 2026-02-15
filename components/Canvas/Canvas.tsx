@@ -118,11 +118,14 @@ export function Canvas({
   const [popoverPosition, setPopoverPosition] = useState<{ x: number; y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     position: { x: number; y: number };
+    anchor: 'point' | 'center';
     type: 'node' | 'pane';
     nodeId?: string;
     nodeWord?: string;
+    nodeExplanation?: string;
     isExpanded?: boolean;
   } | null>(null);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   const { screenToFlowPosition, getZoom, setCenter } = useReactFlow();
 
@@ -171,6 +174,15 @@ export function Canvas({
     setEdges(initialEdges);
   }, [initialEdges, setEdges]);
 
+  useEffect(() => {
+    const media = window.matchMedia('(hover: none), (pointer: coarse)');
+    const update = () => setIsTouchDevice(media.matches);
+    update();
+
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
   // 左键点击空白处 - 只有在画布为空时才能添加词语
   const handlePaneClick = useCallback(
     (event: MouseEvent | React.MouseEvent) => {
@@ -205,6 +217,7 @@ export function Canvas({
       if (initialNodes.length > 0) {
         setContextMenu({
           position: { x: clientX, y: clientY },
+          anchor: 'point',
           type: 'pane',
         });
       }
@@ -213,27 +226,40 @@ export function Canvas({
   );
 
   // 右键点击节点 - 展开方向控制
-  const handleNodeContextMenu = useCallback(
-    (event: MouseEvent | React.MouseEvent, node: Node) => {
-      event.preventDefault();
-
+  const openNodeContextMenu = useCallback(
+    (
+      event: MouseEvent | React.MouseEvent,
+      node: Node,
+      allowExpanded: boolean,
+      forceCenter: boolean
+    ) => {
       const nodeData = node.data as WordNodeType['data'];
+      if (nodeData.isExpanded && !allowExpanded) return;
 
-      // 如果节点已展开，不显示菜单
-      if (nodeData.isExpanded) return;
-
-      const clientX = 'nativeEvent' in event ? event.clientX : (event as MouseEvent).clientX;
-      const clientY = 'nativeEvent' in event ? event.clientY : (event as MouseEvent).clientY;
+      const rawX = 'nativeEvent' in event ? event.clientX : (event as MouseEvent).clientX;
+      const rawY = 'nativeEvent' in event ? event.clientY : (event as MouseEvent).clientY;
+      const clientX = forceCenter ? window.innerWidth / 2 : rawX;
+      const clientY = forceCenter ? window.innerHeight * 0.45 : rawY;
 
       setContextMenu({
         position: { x: clientX, y: clientY },
+        anchor: forceCenter ? 'center' : 'point',
         type: 'node',
         nodeId: node.id,
         nodeWord: nodeData.word,
+        nodeExplanation: nodeData.explanation ?? undefined,
         isExpanded: nodeData.isExpanded,
       });
     },
     []
+  );
+
+  const handleNodeContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      openNodeContextMenu(event, node, false, false);
+    },
+    [openNodeContextMenu]
   );
 
   const handleAddWord = useCallback(
@@ -272,12 +298,16 @@ export function Canvas({
     });
   }, [onOrganizeNetwork, getZoom, setCenter]);
 
-  // 左键点击节点 - 不做任何事（展开功能移到右键）
+  // 节点点击：桌面端关闭菜单；移动端点击直接弹出菜单（替代右键）
   const handleNodeClick = useCallback(
-    () => {
+    (event: MouseEvent | React.MouseEvent, node: Node) => {
+      if (isTouchDevice) {
+        openNodeContextMenu(event, node, true, true);
+        return;
+      }
       setContextMenu(null);
     },
-    []
+    [isTouchDevice, openNodeContextMenu]
   );
 
   return (
@@ -326,12 +356,32 @@ export function Canvas({
       {contextMenu && (
         <ContextMenu
           position={contextMenu.position}
+          anchor={contextMenu.anchor}
           type={contextMenu.type}
           nodeWord={contextMenu.nodeWord}
+          nodeExplanation={contextMenu.nodeExplanation}
+          isExpanded={contextMenu.isExpanded}
           onClose={() => setContextMenu(null)}
           onExpandWithDirection={handleExpandWithDirection}
           onOrganizeNetwork={handleOrganizeNetwork}
         />
+      )}
+
+      {isTouchDevice && initialNodes.length > 0 && (
+        <button
+          type="button"
+          onClick={handleOrganizeNetwork}
+          className="
+            fixed right-4 bottom-20 z-30
+            rounded-full border border-[var(--node-border)]
+            bg-[var(--node-bg)]/95 px-4 py-2
+            text-sm font-serif text-[var(--foreground)]
+            shadow-lg transition-colors hover:bg-[var(--muted)]
+            pointer-events-auto
+          "
+        >
+          整理网络
+        </button>
       )}
     </div>
   );
